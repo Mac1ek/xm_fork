@@ -183,7 +183,7 @@ static bool loadXMSamples(std::array<STSample, 16>& samples, int num_samples, st
         STSample& s = samples[i];
         s.sample.length = getLE32(sh + 0);
         s.sample.loopstart = getLE32(sh + 4);
-        s.sample.loopend = getLE32(sh + 8); // This is loop length, not end
+        s.sample.loopend = getLE32(sh + 8); // Note: This is loop LENGTH in file format, converted to loop END later
         s.volume = sh[12];
         s.finetune = sh[13];
         looptypes[i] = sh[14];
@@ -413,7 +413,7 @@ std::unique_ptr<XM> XMLoader::load(const std::string& filename, LoadStatus* stat
         return nullptr;
     }
 
-    uint8_t header[20];
+    uint8_t header[17];
     f.read(reinterpret_cast<char*>(header), 17);
     f.close();
 
