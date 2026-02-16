@@ -179,11 +179,11 @@ void Integer32Mixer::setPanning(int channel, float panning) {
     }
 }
 
-void Integer32Mixer::setChannelCutoff(int channel, float freq) {
+void Integer32Mixer::setChannelCutoff(int /* channel */, float /* freq */) {
     // Filter not implemented in basic mixer
 }
 
-void Integer32Mixer::setChannelResonance(int channel, float reso) {
+void Integer32Mixer::setChannelResonance(int /* channel */, float /* reso */) {
     // Filter not implemented in basic mixer
 }
 
@@ -367,7 +367,7 @@ void Integer32Mixer::dumpStatus(ChannelStatus status[]) const {
     }
 }
 
-void Integer32Mixer::loadChannelSettings(int channel) {
+void Integer32Mixer::loadChannelSettings(int /* channel */) {
     // Not implemented in basic mixer
 }
 
