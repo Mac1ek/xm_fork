@@ -291,7 +291,7 @@ int XMPlayer::envelopeHandle(STEnvelope* env, uint32_t* pos, bool sustain) {
         }
     }
     
-    return val * 4; // Scale to 0-256
+    return val * 4; // Scale from XM envelope range (0-64) to internal range (0-256)
 }
 
 void XMPlayer::setNotePitch(int ch, int note, int finetune, int relnote) {

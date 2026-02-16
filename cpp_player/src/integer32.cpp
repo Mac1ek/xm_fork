@@ -173,6 +173,9 @@ void Integer32Mixer::setPanning(int channel, float panning) {
     
     if (stereo) {
         // Calculate stereo volumes from panning (-1.0 to +1.0)
+        // panning = -1.0: left=100%, right=0%
+        // panning =  0.0: left=50%, right=50%
+        // panning = +1.0: left=0%, right=100%
         int32_t base_vol = (c.volumeleft + c.volumeright) / 2;
         c.volumeleft = static_cast<int32_t>(base_vol * (1.0f - (panning + 1.0f) * 0.5f));
         c.volumeright = static_cast<int32_t>(base_vol * ((panning + 1.0f) * 0.5f));
