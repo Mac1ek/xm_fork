@@ -1,2 +1,0 @@
-/usr/bin/ar qc libxmplayer.a CMakeFiles/xmplayer.dir/src/xm.cpp.o CMakeFiles/xmplayer.dir/src/integer32.cpp.o CMakeFiles/xmplayer.dir/src/xmplayer.cpp.o
-/usr/bin/ranlib libxmplayer.a

@@ -1,1 +1,0 @@
-/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/simple_example.dir/link.d CMakeFiles/simple_example.dir/simple_example.cpp.o -o simple_example  ../libxmplayer.a
