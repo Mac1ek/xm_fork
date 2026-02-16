@@ -1,0 +1,555 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html401/loose.dtd">
+<html>
+<!-- Created on February, 25 2006 by texi2html 1.76 -->
+<!--
+Written by: Lionel Cons <Lionel.Cons@cern.ch> (original author)
+            Karl Berry  <karl@freefriends.org>
+            Olaf Bachmann <obachman@mathematik.uni-kl.de>
+            and many others.
+Maintained by: Many creative people <dev@texi2html.cvshome.org>
+Send bugs and suggestions to <users@texi2html.cvshome.org>
+
+-->
+<head>
+<title>SoundTracker internals: </title>
+
+<meta name="description" content="SoundTracker internals: ">
+<meta name="keywords" content="SoundTracker internals: ">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="texi2html 1.76">
+<meta http-equiv="Content-Type" content="text/html; charset=us-ascii">
+<style type="text/css">
+<!--
+a.summary-letter {text-decoration: none}
+pre.display {font-family: serif}
+pre.format {font-family: serif}
+pre.menu-comment {font-family: serif}
+pre.menu-preformatted {font-family: serif}
+pre.smalldisplay {font-family: serif; font-size: smaller}
+pre.smallexample {font-size: smaller}
+pre.smallformat {font-family: serif; font-size: smaller}
+pre.smalllisp {font-size: smaller}
+span.sansserif {font-family:sans-serif; font-weight:normal;}
+ul.toc {list-style: none}
+-->
+</style>
+
+
+</head>
+
+<body lang="en" bgcolor="#FFFFFF" text="#000000" link="#0000FF" vlink="#800080" alink="#FF0000">
+
+<a name="Top"></a>
+<a name="SEC_Top"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#SEC_Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[Contents]</td>
+<td valign="middle" align="left">[Index]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<h1 class="settitle">SoundTracker internals
+</h1>
+
+<table class="menu" border="0" cellspacing="0">
+<tr><td align="left" valign="top"><a href="#SEC1">1. General Architecture</a></td><td>&nbsp;&nbsp;</td><td align="left" valign="top">
+</td></tr>
+<tr><td align="left" valign="top"><a href="#SEC2">2. Synchronization of Audio and GUI</a></td><td>&nbsp;&nbsp;</td><td align="left" valign="top">
+</td></tr>
+<tr><td align="left" valign="top"><a href="#SEC3">3. How the audio subsystem works</a></td><td>&nbsp;&nbsp;</td><td align="left" valign="top">
+</td></tr>
+<tr><td align="left" valign="top"><a href="#SEC4">4. Driver API</a></td><td>&nbsp;&nbsp;</td><td align="left" valign="top">
+</td></tr>
+<tr><td align="left" valign="top"><a href="#SEC8">5. Mixer API</a></td><td>&nbsp;&nbsp;</td><td align="left" valign="top">
+</td></tr>
+<tr><td align="left" valign="top"><a href="#SEC9">6. Contributing Code</a></td><td>&nbsp;&nbsp;</td><td align="left" valign="top">
+</td></tr>
+</table>
+
+<hr size="1">
+<a name="General-Architecture"></a>
+<a name="SEC1"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#SEC_Top" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#SEC2" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[ &lt;&lt; ]</td>
+<td valign="middle" align="left">[<a href="#SEC_Top" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#SEC2" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#SEC_Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[Contents]</td>
+<td valign="middle" align="left">[Index]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<h1 class="chapter"> 1. General Architecture </h1>
+
+<p>SoundTracker (short: ST) consists of two threads: the GUI (or main)
+thread, and the audio (or mixer / player) thread. The reason for not
+handling both jobs in one process via select() is obvious: the GUI can
+sometimes block the process for quite a long time. For example when the
+window is resized, widgets have to be redrawn, which can take a
+while. To provide continous sound output, we're using a separate thread.
+</p>
+<p>Communication between the threads is accomplished using two pipes. The
+communication codes for this pipe are defined in audio.h. When messages
+are received, they are handled in gui.c::read_mixer_pipe() and
+audio.c::audio_thread(), respectively.
+</p>
+<p>In its current form, the code is limited to dealing with one module at
+the same time, with one editing window. Some of the GUI code has already
+been modularized, since some of the editing facilities have been
+encapsulated in custom GTK+ widgets, for example sample-display.c,
+clavier.c, envelope-box.c, playlist.c and tracker.c. Noteworthy exceptions and
+containers of generous amounts of global variables are gui.c,
+sample-editor.c, instrument-editor.c and xm-player.c.
+</p>
+<p>For ST to be made fully multi-module capable (&quot;object-oriented&quot;), large
+parts of the GUI will have to be changed. Unfortunately, references to
+the global &quot;tracker&quot; and &quot;xm&quot; variables can be found virtually
+everywhere in the source code.
+</p>
+<hr size="6">
+<a name="Synchronization-of-Audio-and-GUI"></a>
+<a name="SEC2"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#SEC1" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#SEC3" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#SEC1" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Top" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#SEC3" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#SEC_Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[Contents]</td>
+<td valign="middle" align="left">[Index]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<h1 class="chapter"> 2. Synchronization of Audio and GUI </h1>
+
+<p>Since mixing buffer sizes can't be turned down as low as under primitive
+operating systems such as DOS, special care must been taken to take the
+audio latency into account.
+</p>
+<p>The audio thread thus keeps a list of recently reached pattern positions
+and their occurence in the mixed audio output stream. The GUI thread
+then checks periodically (track-editor.c::tracker_timeout(),
+scope-group.c::scope_group_timeout()) for the current position of the
+soundcard in the output stream and calculates which pattern position
+corresponds to that time. The get_play_time() method in output drivers
+is the key for this to work correctly. The lists are handled through the
+time buffer interface, see time-buffer.[ch].
+</p>
+<p>The oscilloscope monitors are handled in a similar way through some ring
+buffers. This is documented in audio.h, for example. time-buffer can't
+be used here because scope data is continuous and is accessed from the
+GUI thread in more than one location.
+</p>
+<p>Certain other events are handled through the event waiter interface (see
+event-waiter.h for an overview).
+</p>
+<hr size="6">
+<a name="How-the-audio-subsystem-works"></a>
+<a name="SEC3"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#SEC2" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#SEC4" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#SEC2" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Top" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#SEC4" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#SEC_Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[Contents]</td>
+<td valign="middle" align="left">[Index]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<h1 class="chapter"> 3. How the audio subsystem works </h1>
+
+<p>Module playing is initialized by the GUI thread sending a message
+AUDIO_CTLPIPE_PLAY_SONG, for example. The audio thread then opens the
+driver module, which in turn installs a callback method, which will be
+called as soon as the sound card is accepting new data. The OSS driver,
+for example, instructs the audio subsystem, through
+audio.c::audio_poll_add(), to call
+oss-output.c::oss_poll_ready_playing() once OSS accepts new data from
+ST.
+</p>
+<p>After opening the output driver, various other things are initialized in
+audio.c::audio_prepare_for_playing(). After that, an acknowledgement
+message is sent back to the GUI thread, which is in playing mode from
+then on (indicated by the global variable gui.c::gui_playing_mode).
+</p>
+<p>After that, the audio thread goes back into its main poll() loop, which
+also waits for the driver callback action now. Once this callback is
+triggered, it calls audio.c::audio_mix() (defined in driver-out.h) to
+request a new part of the sample output stream in any format and bitrate
+it desires, which is then output.
+</p>
+<p>Calling the XM player at the right moment and handling the pitch bending
+feature is all done in audio_mix() which should be rather
+straight-forward to read.
+</p>
+<p>Interesting is also the interaction between xm-player.c and the rest of
+the audio subsystem. There are some routines in audio.c starting with
+driver_*, like driver_startnote, driver_setfreq. xm-player.c calls these
+instead of the corresponding routines in the mixer because this way, a
+modularized mixer system could be installed lateron. You can find more
+about the Mixer API later in this document.
+</p>
+<hr size="6">
+<a name="Driver-API"></a>
+<a name="SEC4"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#SEC3" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#SEC5" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#SEC3" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Top" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#SEC8" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#SEC_Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[Contents]</td>
+<td valign="middle" align="left">[Index]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<h1 class="chapter"> 4. Driver API </h1>
+
+<p>The driver API is separated into two branches: output and input
+(sampling) drivers. Input drivers are usually simpler, because they
+don't have to include the mechanisms necessary for synchronization of
+the audio output stream with the GUI. Also, currently only 16bit mono
+sampling is supported (though changing this would require only some
+changes to sample-editor.c), so a good amount of the settings widgets
+are missing in input drivers.
+</p>
+<p>Note that the current API doesn't make any provisions for MIDI input /
+output. First and foremost, it must be thought about the synchronization
+of MIDI output with mixed (DSP) output as the most important aspect; the
+central audio code in audio.c hasn't been designed with this in mind
+either.
+</p>
+<p>Also not accounted for, but related to the MIDI issue, are wavetable
+devices like the GUS which can play multiple samples on their own. But
+since hardware like this is more and more becoming extinct and CPU power
+rises, I don't think that supporting this is important any longer,
+especially once ST will be extended to support effect plug-ins which
+can't be rendered by the audio hardware but must be calculated using the
+CPU!
+</p>
+<hr size="6">
+<a name="SEC5"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#SEC4" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#SEC6" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#SEC4" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#SEC4" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#SEC8" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#SEC_Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[Contents]</td>
+<td valign="middle" align="left">[Index]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<h2 class="section"> 4.1 Adding drivers to the source tree </h2>
+
+<p>You must add checks for any libs and includes in configure.in, add a
+corresponding driver define to acconfig.h, add the driver to the drivers
+list in main.c, and finally add all the files belonging to your driver
+(should be only one) to drivers/Makefile.am. Now you still have to write
+the code, that's what the two next sections are about.
+</p>
+<hr size="6">
+<a name="SEC6"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#SEC5" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#SEC7" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#SEC4" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#SEC4" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#SEC8" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#SEC_Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[Contents]</td>
+<td valign="middle" align="left">[Index]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<h2 class="section"> 4.2 Output drivers </h2>
+
+<p>The st_out_driver structure, defined driver-out.h must be globally
+defined in your source file. It must contain valid pointers to all the
+functions and a unique entry in the name field. The rest of the
+variables and functions in your source file should be defined static so
+as to hide them from the rest of the program.
+</p>
+<p>You can keep the *settings functions empty at first, adding the right
+code here shouldn't be a problem when you compare with oss-output.c.
+</p>
+<p>The first function you should write is new(), which allocates a new
+object and initializes it with default settings. getwidget() can stay
+empty for as long as you don't want the user to change settings.
+</p>
+<p>The next function you write should be open(), which opens the device
+according to the settings in the object structure. release() does the
+opposite. open() should install the callback mentioned earlier, which is
+the function you're going to write now. That's it, you should have a
+working minimal driver now.
+</p>
+<p>The next important function is getplaytime() which is necessary for the
+GUI to synchronize with the audio output. This might require some
+experimentation to get right.
+</p>
+<p>Now you can start adding the settings widget and add code to the load /
+save settings functions.
+</p>
+<hr size="6">
+<a name="SEC7"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#SEC6" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#SEC8" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#SEC4" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#SEC4" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#SEC8" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#SEC_Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[Contents]</td>
+<td valign="middle" align="left">[Index]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<h2 class="section"> 4.3 Input drivers </h2>
+
+<hr size="6">
+<a name="Mixer-API"></a>
+<a name="SEC8"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#SEC7" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#SEC9" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#SEC4" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Top" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#SEC9" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#SEC_Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[Contents]</td>
+<td valign="middle" align="left">[Index]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<h1 class="chapter"> 5. Mixer API </h1>
+
+<p>To be written. Two mixers are already available; shouldn't be hard to
+understand how it works. Basically it's really independent of the rest
+of the tracker.
+</p>
+<hr size="6">
+<a name="Contributing-Code"></a>
+<a name="SEC9"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#SEC8" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[ &gt; ]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#SEC8" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Top" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[ &gt;&gt; ]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#SEC_Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[Contents]</td>
+<td valign="middle" align="left">[Index]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<h1 class="chapter"> 6. Contributing Code </h1>
+
+<p>Please follow these rules if you want to donate code to the
+SoundTracker project:
+</p>
+<ul>
+<li> Coding Style. I prefer 4-space tabulators, and an indentation style
+like this:
+
+<table><tr><td>&nbsp;</td><td><pre class="example">	if(something) {
+	    work();
+	}
+</pre></td></tr></table>
+<p>instead of:
+</p>
+<table><tr><td>&nbsp;</td><td><pre class="example">	if (something)
+	  {
+	    work ();
+	  }
+</pre></td></tr></table>
+<p>If you're using Emacs, you can simply use &quot;M-x c-set-style cc-mode&quot;
+</p>
+</li><li> Add yourself to the AUTHORS file.
+
+</li><li> Add a ChangeLog entry.
+
+</li><li> Do a &quot;make dist&quot; in the main directory. This generates a new archive
+containing your changes. Do NOT send me the whole archive, instead:
+
+</li><li> Generate a patch. Unpack the previously generated archive and the
+original archive (into some other directory), and use
+
+<table><tr><td>&nbsp;</td><td><pre class="example">	diff -urN {original-directory} {your-directory} &gt; patch
+</pre></td></tr></table>
+<p>to generate a file containing only your changes, and no auto-generated
+files.
+</p>
+</li><li> Remove the `po' directory patches and patches to all auto-generated
+files (Makefile, Makefile.in, configure.log etc.) from the diff (that's
+what usually makes the patch unnecessarily large). Or just remove the po
+directories before generating the diff.
+
+</li><li> Send the patch to the `soundtracker-discuss' mailing-list, if you
+want feedback from other users. If you're
+not subscribed, then subscribe first (see README file). Mail it directly
+to the maintainer (`m.krause@tu-harburg.de') instead of to the list if it's large. Please explain what the patch changes.
+
+</li></ul>
+
+<hr size="6">
+<a name="SEC_About"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#SEC_Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[Contents]</td>
+<td valign="middle" align="left">[Index]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<h1>About This Document</h1>
+<p>
+  This document was generated by <em>Michael Krause</em> on <em>February, 25 2006</em> using <a href="http://texi2html.cvshome.org/"><em>texi2html 1.76</em></a>.
+</p>
+<p>
+  The buttons in the navigation panels have the following meaning:
+</p>
+<table border="1">
+  <tr>
+    <th> Button </th>
+    <th> Name </th>
+    <th> Go to </th>
+    <th> From 1.2.3 go to</th>
+  </tr>
+  <tr>
+    <td align="center"> [ &lt; ] </td>
+    <td align="center">Back</td>
+    <td>previous section in reading order</td>
+    <td>1.2.2</td>
+  </tr>
+  <tr>
+    <td align="center"> [ &gt; ] </td>
+    <td align="center">Forward</td>
+    <td>next section in reading order</td>
+    <td>1.2.4</td>
+  </tr>
+  <tr>
+    <td align="center"> [ &lt;&lt; ] </td>
+    <td align="center">FastBack</td>
+    <td>beginning of this chapter or previous chapter</td>
+    <td>1</td>
+  </tr>
+  <tr>
+    <td align="center"> [ Up ] </td>
+    <td align="center">Up</td>
+    <td>up section</td>
+    <td>1.2</td>
+  </tr>
+  <tr>
+    <td align="center"> [ &gt;&gt; ] </td>
+    <td align="center">FastForward</td>
+    <td>next chapter</td>
+    <td>2</td>
+  </tr>
+  <tr>
+    <td align="center"> [Top] </td>
+    <td align="center">Top</td>
+    <td>cover (top) of document</td>
+    <td> &nbsp; </td>
+  </tr>
+  <tr>
+    <td align="center"> [Contents] </td>
+    <td align="center">Contents</td>
+    <td>table of contents</td>
+    <td> &nbsp; </td>
+  </tr>
+  <tr>
+    <td align="center"> [Index] </td>
+    <td align="center">Index</td>
+    <td>index</td>
+    <td> &nbsp; </td>
+  </tr>
+  <tr>
+    <td align="center"> [ ? ] </td>
+    <td align="center">About</td>
+    <td>about (help)</td>
+    <td> &nbsp; </td>
+  </tr>
+</table>
+
+<p>
+  where the <strong> Example </strong> assumes that the current position is at <strong> Subsubsection One-Two-Three </strong> of a document of the following structure:
+</p>
+
+<ul>
+  <li> 1. Section One
+    <ul>
+      <li>1.1 Subsection One-One
+        <ul>
+          <li>...</li>
+        </ul>
+      </li>
+      <li>1.2 Subsection One-Two
+        <ul>
+          <li>1.2.1 Subsubsection One-Two-One</li>
+          <li>1.2.2 Subsubsection One-Two-Two</li>
+          <li>1.2.3 Subsubsection One-Two-Three &nbsp; &nbsp;
+            <strong>&lt;== Current Position </strong></li>
+          <li>1.2.4 Subsubsection One-Two-Four</li>
+        </ul>
+      </li>
+      <li>1.3 Subsection One-Three
+        <ul>
+          <li>...</li>
+        </ul>
+      </li>
+      <li>1.4 Subsection One-Four</li>
+    </ul>
+  </li>
+</ul>
+
+<hr size="1">
+<p>
+ <font size="-1">
+  This document was generated by <em>Michael Krause</em> on <em>February, 25 2006</em> using <a href="http://texi2html.cvshome.org/"><em>texi2html 1.76</em></a>.
+ </font>
+ <br>
+
+</p>
+</body>
+</html>
