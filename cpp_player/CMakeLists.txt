@@ -14,6 +14,7 @@ endif()
 # Source files
 set(SOURCES
     src/xm.cpp
+    src/xmloader.cpp
     src/integer32.cpp
     src/xmplayer.cpp
 )

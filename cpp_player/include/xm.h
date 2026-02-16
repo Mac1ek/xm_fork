@@ -91,6 +91,23 @@ public:
         , panning(128)
         , relnote(0)
         , treat_as_8bit(false) {}
+    
+    ~STSample() {
+        if (sample.data) {
+            delete[] sample.data;
+            sample.data = nullptr;
+        }
+        if (sample.lock) {
+            delete sample.lock;
+            sample.lock = nullptr;
+        }
+    }
+    
+    // Disable copy, allow move
+    STSample(const STSample&) = delete;
+    STSample& operator=(const STSample&) = delete;
+    STSample(STSample&&) = default;
+    STSample& operator=(STSample&&) = default;
 };
 
 // Envelope flags
